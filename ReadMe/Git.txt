@@ -33,3 +33,8 @@ git push origin -u feature/dummybranch -- push to the git repository on server
 ///// To revert your changes - 
 1. git reset --hard HEAD~1
 
+--To Change another remote repo path
+1. check which remote you are current in
+	git remote -v
+2. change path 
+	git remote set-url origin yourgitrepopath
