@@ -40,3 +40,6 @@ git push origin -u feature/dummybranch -- push to the git repository on server
 	git remote set-url origin yourgitrepopath
 //////////////////////////////revert back commit
 git revert <commit-hash>
+
+///////dubius ownership 
+git config --global --add safe.directory C:/Indiminds/Production/Projects/ODR-UI
