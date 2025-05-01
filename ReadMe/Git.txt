@@ -43,3 +43,11 @@ git revert <commit-hash>
 
 ///////dubius ownership 
 git config --global --add safe.directory C:/Indiminds/Production/Projects/ODR-UI
+
+//////////git clone repo from one account repo to another account repo (just like 'DEV To UAT')
+	Note - remove remote - target if already exist - (cmd : git remote remove target )
+	1. git clone origin branch
+	2. add target : git remote add origin targetbranch
+	3. git push target --all 
+
+
