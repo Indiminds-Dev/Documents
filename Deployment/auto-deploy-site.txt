@@ -1,0 +1,199 @@
+URL-> https://github.com/Indiminds-Dev-Org/fit-website/blob/main/.github/workflows/mirror-deploy.yml
+
+# Mirror project to deploy repo and trigger Vercel Preview
+
+**Purpose:**
+This GitHub Actions workflow mirrors a *dev* repository into a separate *deploy* repository. It runs in two cases:
+
+1. After a successful `PR Build Check` workflow run (to mirror a PR branch).
+2. When `main` in the dev repo receives commits (to mirror `main`).
+
+Mirroring allows a separate repository (the `deploy` repo) to hold the code that your deployment system (e.g. Vercel) watches and automatically deploys.
+
+---
+
+## Top-level behavior (summary)
+
+* Triggered by either a `workflow_run` (PR Build Check completes) or a `push` to `main`.
+* Creates a temporary folder, copies code there, initializes a git repo, and pushes to the deploy repository by SSH.
+* For PR builds it creates / updates a branch in the deploy repo with the same PR branch name so that Vercel (or another deployment tool) can deploy a Preview for that PR branch.
+* For pushes to `main` it pushes to the `main` branch of the deploy repo.
+
+---
+
+## File location
+
+Place this YAML in the dev repository under `.github/workflows/mirror-to-deploy.yml` (or a name that matches your repo conventions).
+
+---
+
+## Inputs & required secrets / repository settings
+
+### Required secrets (in dev repo settings ➜ Secrets ➜ Actions)
+
+* `SSH_PRIVATE_KEY` — Private SSH key that has write access to the **deploy** repository via the `git@github.com:...` SSH URL.
+
+> **Important:** Add the corresponding **public** key as a deploy key on the *deploy repo* (Indiminds-deploy/fit-website.git) with `Write` access, OR add the public key to a GitHub user that has push access to the deploy repo.
+
+### Environment variables in the workflow
+
+* `DEPLOY_REPO_SSH` — The SSH remote for the deploy repository. In the workflow example it is `git@github.com:Indiminds-deploy/fit-website.git`. Change this to your deploy repo.
+
+* `PR_BRANCH` — computed in the workflow from the triggering event (populated automatically by the workflow run event). No manual setting required.
+
+---
+
+## Permissions & GitHub App scopes
+
+The workflow runs `actions/checkout` and uses an SSH key to push to another repository. The workflow file does not require `GITHUB_TOKEN` pushes to the deploy repo because it uses SSH pushes. However, make sure:
+
+* The SSH key is authorized to push to the deploy repo.
+* The workflow runner has `contents: read` on the dev repo (default for `actions/checkout`) — no extra permissions required to read your source.
+
+If you prefer using `GITHUB_TOKEN` to push, you must set up a workflow in the **deploy repo** to accept PRs/commits and give the token the necessary `contents: write` permission — but the SSH method is simpler for cross-repo pushes.
+
+---
+
+## Step-by-step explanation (what each step does)
+
+1. **`Checkout dev repo`** (`actions/checkout@v4`)
+
+   * Checks out the dev repository code on the runner with full history (`fetch-depth: 0`) so we can mirror exactly.
+
+2. **`Skip if commit is from GitHub Actions bot`**
+
+   * Reads the last commit author. If the last commit was made by `github-actions[bot] <actions@github.com>`, the job exits early. This prevents infinite loops when the mirroring commit itself triggers the workflow.
+
+3. **`Start SSH agent`** (`webfactory/ssh-agent@v0.8.0`)
+
+   * Loads the `SSH_PRIVATE_KEY` secret into an ssh-agent in the runner so subsequent `git` operations using an SSH remote succeed.
+
+4. **`Ensure GitHub host key known`**
+
+   * Adds `github.com` to `~/.ssh/known_hosts` to avoid host key confirmation prompts during push.
+
+5. **`Configure git identity`**
+
+   * Sets `user.name` and `user.email` for commits created by the action. Current example uses `github-actions[bot]`.
+
+6. **`Mirror code to deploy repo (PR branch or main)`**
+
+   * Creates a temporary directory (`deploy-temp`) and copies worktree files excluding `.github` (so you don't copy workflows to deploy repo unless you want them there).
+   * Initializes a git repo, adds `deploy` remote pointing to `DEPLOY_REPO_SSH`.
+   * If this run was triggered by a `workflow_run` (i.e. PR Build Check) and `PR_BRANCH` is set, it will create a branch named after the PR branch and push it to the deploy repo. This enables per-PR preview deploys.
+   * Otherwise, it will push to `main` on the deploy repo.
+   * `--force` is used so the deploy repo's branch matches the dev repo branch exactly. Use with caution.
+
+---
+
+## How to set up (step-by-step guide)
+
+1. **Create the SSH key pair (on a safe machine)**
+
+```bash
+# on your machine (not on the runner)
+ssh-keygen -t ed25519 -C "deploy-key@your-org" -f mirror-deploy-key
+# mirror-deploy-key -> private
+# mirror-deploy-key.pub -> public
+```
+
+2. **Add the private key to the dev repo secrets**
+
+* In the *dev* repo (the one containing this workflow): Settings → Secrets and variables → Actions → New repository secret
+* Create secret `SSH_PRIVATE_KEY` and paste the full **private** key (the `mirror-deploy-key` file contents).
+
+3. **Add the public key to the deploy repo**
+
+* In the *deploy* repo: Settings → Deploy keys → Add deploy key
+* Paste the `mirror-deploy-key.pub` contents, enable **Allow write access**.
+
+  *Alternatively*: add the public key to the SSH keys of a user account that has push access to the deploy repo.
+
+4. **Point `DEPLOY_REPO_SSH` to the correct repo**
+
+* Edit the workflow and change `git@github.com:Indiminds-deploy/fit-website.git` to your deploy repository.
+
+5. **Decide whether to exclude `.github` or not**
+
+* The rsync excludes `.github` by default to avoid pushing workflows into the deploy repo. If your deploy repo should contain workflows, remove the exclude.
+
+6. **Commit and push the workflow to dev repo**
+
+7. **Test the flow**
+
+* Create a test branch / PR in dev repo; run PR Build Check and ensure the workflow_run triggers and the dev branch gets mirrored to the deploy repo.
+* Push to `main` in dev repo and ensure `main` is mirrored to the deploy repo.
+
+---
+
+## Safety notes / best practices (what to do / what not to do)
+
+### Do
+
+* Use a dedicated deploy SSH key per automation (not a personal key).
+* Add only the **minimum** permissions needed to the deploy key (write to repo if necessary). Rotate the key periodically.
+* Keep `fetch-depth: 0` only when necessary. If you can work with shallower clones you can reduce runner bandwidth.
+* Test on a non-production deploy repo first.
+* Monitor for accidental workflow recursion and keep the bot skip step.
+* Add branch protections in deploy repo if you want to prevent accidental pushes to specific branches—remember the workflow uses `--force` and will override remote branches.
+
+### Don’t
+
+* Don’t commit the private key to any repo.
+* Don’t grant the deploy key access to other repos unless required.
+* Don’t remove the `Skip if commit is from GitHub Actions bot` step unless you have another strategy to prevent recursion.
+* Don’t use `--force` on branches you care about without backup or change control—`--force` makes the mirror authoritative.
+
+---
+
+## Troubleshooting
+
+**Problem: SSH authentication fails**
+
+* Verify the private key in repository secrets, and ensure the public key is added as a deploy key with write access to the deploy repo. Ensure no extra line breaks were introduced when pasting the key.
+
+**Problem: Workflow keeps retriggering in loop**
+
+* Make sure the `Skip if commit is from GitHub Actions bot` logic is detecting the author correctly. If your mirror commit author is different, either update that check or configure the workflow commit author to match.
+
+**Problem: Push rejected / permission denied**
+
+* Confirm the deploy repo `git@github.com:owner/repo.git` path is correct and that the key has write permission. Also ensure deploy repo hasn't blocked pushes via branch protections that require reviews.
+
+**Problem: Branch not created in deploy repo**
+
+* Confirm `PR_BRANCH` environment variable is passed properly. The workflow uses `${{ github.event.workflow_run.head_branch || '' }}` — make sure the triggering `workflow_run` provides `head_branch`.
+
+**Problem: Changes not mirrored**
+
+* The `git commit` step uses `|| echo "No changes to commit"` — if content is identical there will be no commit. Verify the copy excludes or includes the files you expect.
+
+---
+
+## Common modifications & examples
+
+* **Keep `.github` folder when mirroring** (so that deploy repo also has workflows): remove `--exclude='.github'` from the `rsync` command.
+
+* **Use `GITHUB_TOKEN` instead of SSH**: You can set up a GitHub App or use repository dispatch/webhook in the deploy repo — this requires a different flow and `contents: write` permissions.
+
+* **Mirror tags**: If you need to mirror tags, fetch tags and push `--tags` as part of the push command.
+
+* **Avoid `--force`**: To reduce risk, remove `--force` and handle merge conflicts or divergent histories explicitly.
+
+---
+
+## Example: minimal checklist for first-time setup
+
+1. Generate SSH key pair (ed25519 recommended).
+2. Add private key as `SSH_PRIVATE_KEY` secret in dev repo.
+3. Add public key as deploy key with write access to deploy repo.
+4. Update `DEPLOY_REPO_SSH` to correct repo path.
+5. Commit workflow file to dev repo and open a test PR.
+6. Inspect Actions logs — ensure push to deploy repo succeeded.
+
+---
+
+## Changelog / versioning
+
+* **v1.0** — Initial documentation and workflow steps.
+
