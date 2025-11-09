@@ -1,0 +1,18 @@
+Pre Requisite: Slack in Group in Channel (30 mins Prior) in Techies Development, 
+With Client Name and DB Name
+
+1. Open Visual Studio not Code.
+2. Continue without code.
+3. Tools -> SQL Server -> New Schema Comparison
+4. Source (Dont Remember) <-> Target (Remember) |//Fitminds- Cloud <-> Target Server | (TSC: False, Encrypt: Optional)
+5. Compare Button on Top Left (*******Look at the list of DONTS)
+6. Click on the generate script Icon.
+7. Copy and Paste the script in Query editor window. {***SQL CMD MODE}
+8. Execute
+9. Save the main script in this format | CLIENT_DB_Update_DDMMYYYY_HHMM.publish.sql |
+10. Save the execution result in this format | CLIENT_DB_Update_DDMMYYYY_HHMM.publish_Result.rpt |
+11. Close Visual Studio and any other remaining instances you opened in the process.
+
+
+Dont's:
+1. Never Select Delete suggestions (Do Uncheck)
