@@ -1,0 +1,30 @@
+Install the Required Tools (Correct Versions)
+✔ A) Visual Studio Build Tools
+
+It will show you all visual studio packages
+there is visual studio build tool
+click on modify
+check in workloads tab, check desktop development for c++
+
+---------------------------------------------------------------------------------------
+and in independent component TAB do below steps
+
+You must install:
+
+MSVC v143 (or latest available)
+
+Windows 10/11 SDK
+
+C++ CMake Tools for Windows (optional but useful)
+
+Your VS Build Tools installer should look like:
+
+Make sure these components are checked:
+
+✔ MSVC v143 / v142
+✔ Windows SDK
+✔ C++ x64/x86 build tools
+✔ CMake tools
+
+
+----------------------------------------------------------------------------------------
